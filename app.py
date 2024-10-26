@@ -5,6 +5,7 @@ from pydantic import BaseModel
 import requests
 app = FastAPI()
 COMPRESS_RATE = 50
+output_folder_path = '/app/output_folder'
 @app.get("/")
 def greet_json():
     return {"Hello": "World!"}
@@ -21,6 +22,7 @@ class VideoRequest(BaseModel):
 
 @app.post("/compress")
 def compress_video(video_request: VideoRequest):
+    print(video_request)
     video_url = video_request.video_url
     video_name = video_request.video_name
     upload_url = video_request.upload_url
@@ -30,14 +32,14 @@ def compress_video(video_request: VideoRequest):
     reels_id = video_request.reels_id
     upload_token = video_request.upload_token
     trim_video_name = video_name.replace(".mp4","")
-    output_file = os.path.join('output_folder', f"{trim_video_name}.webm")
-    image_file = os.path.join('output_folder', f"{image_poster}")
+    output_file = os.path.join(output_folder_path, f"{trim_video_name}.webm")
+    image_file = os.path.join(output_folder_path, f"{image_poster}")
     logo = os.path.join(os.getcwd(), 'logo.png')
     if os.path.exists(output_file):
         os.remove(output_file)
     if os.path.exists(image_file):
         os.remove(image_file)
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    os.makedirs(output_folder_path, exist_ok=True)
     ffmpegArgs = [
         'ffmpeg',
         '-i', video_url,
@@ -61,10 +63,10 @@ def compress_video(video_request: VideoRequest):
         output_file
     ]
     try:
-        subprocess.run(ffmpegArgs, check=True, shell=True)
-        with open(output_file, 'rb') as f:
-            files = {'file': (os.path.basename(output_file), f, 'video/webm')}
-            response = requests.put(upload_url, files=files)
+        subprocess.run(ffmpegArgs, check=True)
+        with open(output_file, 'rb') as vid_f:
+            video_headers = {'Content-Type': 'video/webm'}
+            response = requests.put(upload_url, data=vid_f, headers=video_headers)
         if response.status_code == 200:
             ffmpegImageArgs = [
                 'ffmpeg',
@@ -75,7 +77,7 @@ def compress_video(video_request: VideoRequest):
                 '-update', '1',
                 image_file
             ]
-            subprocess.run(ffmpegImageArgs, check=True, shell=True)
+            subprocess.run(ffmpegImageArgs, check=True)
             with open(image_file, 'rb') as img_f:
                 headers = {'Content-Type': 'image/jpeg'}
                 img_response = requests.put(Image_upload_url, data=img_f, headers=headers)
